@@ -1,4 +1,15 @@
 import streamlit as st
+import snowflake.connector
+
+conn = snowflake.connector.connect(
+    account=st.secrets["snowflake"]["account"],
+    user=st.secrets["snowflake"]["user"],
+    password=st.secrets["snowflake"]["password"],
+    role=st.secrets["snowflake"]["role"],
+    warehouse=st.secrets["snowflake"]["warehouse"],
+    database=st.secrets["snowflake"]["database"],
+    schema=st.secrets["snowflake"]["schema"],
+)
 
 def get_factor(sides):
     """Get settlement factor based on number of settled sides."""
