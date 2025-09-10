@@ -1,76 +1,87 @@
 import streamlit as st
 import snowflake.connector
 
-conn = snowflake.connector.connect(
-    account=st.secrets["snowflake"]["account"],
-    user=st.secrets["snowflake"]["user"],
-    password=st.secrets["snowflake"]["password"],
-    role=st.secrets["snowflake"]["role"],
-    warehouse=st.secrets["snowflake"]["warehouse"],
-    database=st.secrets["snowflake"]["database"],
-    schema=st.secrets["snowflake"]["schema"],
-)
-cur = conn.cursor()
-cur.execute("SELECT CURRENT_USER(), CURRENT_ROLE(), CURRENT_DATABASE(), CURRENT_SCHEMA()")
-st.write(cur.fetchone())  # should show DRILLPUMPPATCH_USER, WEBAPP_READER, STREAMLIT_DB, APPDATA
+st.title("🔎 Snowflake Connection Test")
 
-cur.execute("SELECT * FROM STREAMLIT_DB.APPDATA.HELLO_DEMO")
-st.dataframe(cur.fetchall())  # should show your 2 demo rows
-def get_factor(sides):
-    """Get settlement factor based on number of settled sides."""
-    if sides == 1:
-        return 0.5
-    elif sides == 2:
-        return 0.75
-    else:  # 3 or 4 sides: near-uniform
-        return 1.0
+@st.cache_resource(show_spinner=False)
+def get_conn(sf):
+    # Build connection once; Streamlit will reuse it across reruns
+    return snowflake.connector.connect(
+        account=sf["account"],
+        user=sf["user"],
+        password=sf["password"],
+        role=sf["role"],
+        warehouse=sf["warehouse"],
+        database=sf["database"],
+        schema=sf["schema"],
+    )
 
-# Set up the webpage title and description
+# --- Try to connect once, with clear diagnostics ---
+try:
+    sf = st.secrets["snowflake"]
+except Exception as e:
+    st.error("Missing or malformed Streamlit secrets: st.secrets['snowflake']")
+    st.code(repr(e))
+    st.stop()
+
+try:
+    conn = get_conn(sf)
+    cur = conn.cursor()
+    # auth/context check
+    cur.execute("SELECT CURRENT_USER(), CURRENT_ROLE(), CURRENT_DATABASE(), CURRENT_SCHEMA()")
+    st.success(f"Connected: {cur.fetchone()}")
+except Exception as e:
+    st.error("❌ Snowflake connection failed. Fix secrets / user / policy, then reload.")
+    st.code(repr(e))
+    st.stop()
+
+# --- Query HELLO_DEMO defensively so the UI still loads even if table is missing ---
+try:
+    cur.execute("SELECT * FROM STREAMLIT_DB.APPDATA.HELLO_DEMO")
+    st.dataframe(cur.fetchall(), use_container_width=True)
+except Exception as e:
+    st.warning("Could not read STREAMLIT_DB.APPDATA.HELLO_DEMO (table missing or no privilege).")
+    st.code(repr(e))
+
+# ---------------- Your estimator UI ----------------
+
+def get_factor(sides: int) -> float:
+    # tweak if you want 3 sides ≈ 0.90 instead of 1.00
+    return {1: 0.50, 2: 0.75, 3: 1.00, 4: 1.00}.get(int(sides), 0.75)
+
 st.title("🛠️ Concrete Lifting Polyfoam Cost Estimator")
-st.write("Enter the slab details below to get an estimate. All calculations are based on standard industry formulas.")
+st.write("Enter the slab details below to get an estimate. All calculations are simple rules of thumb.")
 
-# Create input fields (like a form)
-st.sidebar.header("Inputs")  # Puts inputs on the side for a clean look
+st.sidebar.header("Inputs")
 width = st.sidebar.number_input("Width of slab (feet)", min_value=0.1, value=10.0, step=0.1)
 length = st.sidebar.number_input("Length of slab (feet)", min_value=0.1, value=10.0, step=0.1)
 sides = st.sidebar.selectbox("How many sides of the slab have settled", options=[1, 2, 3, 4], index=1)
 settlement_inches = st.sidebar.number_input("Settlement at lowest point (inches)", min_value=0.1, value=1.0, step=0.1)
 price_per_lb = st.sidebar.number_input("Price per pound of polyfoam ($)", min_value=0.01, value=2.0, step=0.01)
 
-# Add a "Calculate" button
 if st.sidebar.button("Calculate Estimate"):
-    # Calculations (same as before)
     area_sqft = width * length
     factor = get_factor(sides)
     avg_settlement_inches = settlement_inches * factor
-    avg_settlement_ft = avg_settlement_inches / 12
-    
-    # Cubic yards of polyfoam (expanded volume to fill void)
+    avg_settlement_ft = avg_settlement_inches / 12.0
+
     volume_cuft = area_sqft * avg_settlement_ft
-    volume_cuyards = volume_cuft / 27
-    
-    # Pounds of polyfoam (material used, per rule of thumb)
-    pounds = area_sqft * avg_settlement_inches  # 1 lb per sqft per inch average lift
-    
-    # Total cost
+    volume_cuyards = volume_cuft / 27.0
+
+    pounds = area_sqft * avg_settlement_inches     # ≈ 1 lb/sqft per inch avg lift
     total_cost = pounds * price_per_lb
-    
-    # Display results on the main page
+
     st.header("Estimation Results")
     col1, col2 = st.columns(2)
     with col1:
         st.metric("Slab Area", f"{area_sqft:.2f} sq ft")
-        st.metric("Average Settlement Depth", f"{avg_settlement_inches:.2f} inches (factor: {factor})")
+        st.metric("Average Settlement Depth", f"{avg_settlement_inches:.2f} in (factor: {factor:.2f})")
     with col2:
-        st.metric("Cubic Yards of Polyfoam Required", f"{volume_cuyards:.2f}")
-        st.metric("Pounds of Polyfoam Used", f"{pounds:.2f}")
-    
+        st.metric("Cubic Yards Required", f"{volume_cuyards:.2f}")
+        st.metric("Pounds of Polyfoam", f"{pounds:.2f}")
     st.metric("Estimated Material Cost", f"${total_cost:.2f}")
-    st.write("*Note: This is an estimate. Consult a professional for accurate assessments.*")
 else:
-    st.info("👈 Enter values in the sidebar and click 'Calculate Estimate' to see results.")
+    st.info("👈 Enter values in the sidebar and click **Calculate Estimate** to see results.")
 
-# Add a sample example
-with st.expander("Try This Sample (10x10 ft slab, 2 sides, 1 inch settlement, $2/lb)"):
-    st.write("Expected: 0.23 cubic yards, 75 lbs, $150 cost.")
-
+with st.expander("Try This Sample (10×10 ft slab, 2 sides, 1 inch, $2/lb)"):
+    st.write("Expected ≈ 0.23 cubic yards, 75 lbs, $150 cost.")
