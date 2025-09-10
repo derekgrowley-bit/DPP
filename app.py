@@ -10,7 +10,12 @@ conn = snowflake.connector.connect(
     database=st.secrets["snowflake"]["database"],
     schema=st.secrets["snowflake"]["schema"],
 )
+cur = conn.cursor()
+cur.execute("SELECT CURRENT_USER(), CURRENT_ROLE(), CURRENT_DATABASE(), CURRENT_SCHEMA()")
+st.write(cur.fetchone())  # should show DRILLPUMPPATCH_USER, WEBAPP_READER, STREAMLIT_DB, APPDATA
 
+cur.execute("SELECT * FROM STREAMLIT_DB.APPDATA.HELLO_DEMO")
+st.dataframe(cur.fetchall())  # should show your 2 demo rows
 def get_factor(sides):
     """Get settlement factor based on number of settled sides."""
     if sides == 1:
