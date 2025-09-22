@@ -1,49 +1,7 @@
 import streamlit as st
 import snowflake.connector
 
-st.set_page_config(page_title="Polyfoam Estimator + Snowflake Test", page_icon="🛠️", layout="centered")
-
-# -----------------------------
-# 1) Snowflake connection (safe & debuggable)
-# -----------------------------
-st.header("🔎 Snowflake Cloud Connect Test")
-
-@st.cache_resource(show_spinner=False)
-def get_conn():
-    """Create and cache a Snowflake connection using Streamlit secrets."""
-    sf = st.secrets["snowflake"]  # read inside so the cache key is stable
-    return snowflake.connector.connect(
-        account=sf["account"],
-        user=sf["user"],
-        password=sf["password"],
-        role=sf["role"],
-        warehouse=sf["warehouse"],
-        database=sf["database"],
-        schema=sf["schema"],
-    )
-
-if st.button("Connect to Snowflake"):
-    try:
-        conn = get_conn()
-        cur = conn.cursor()
-
-        # Authentication / context smoke test
-        cur.execute("SELECT CURRENT_USER(), CURRENT_ROLE(), CURRENT_DATABASE(), CURRENT_SCHEMA()")
-        st.success(("Connected:",) + cur.fetchone())
-
-        # Optional demo read to prove data access
-        try:
-            cur.execute("SELECT * FROM STREAMLIT_DB.APPDATA.HELLO_DEMO")
-            st.dataframe(cur.fetchall(), use_container_width=True)
-        except Exception as e:
-            st.warning("Connected, but could not read STREAMLIT_DB.APPDATA.HELLO_DEMO.")
-            st.code(repr(e))
-
-    except Exception as e:
-        st.error("❌ Connect failed. Check Cloud Secrets, user password/lock, or network policy.")
-        st.code(repr(e))
-
-st.divider()
+st.set_page_config(page_title="Polyfoam Estimator", page_icon="🛠️", layout="centered")
 
 # -----------------------------
 # 2) Your estimator UI (works even if Snowflake is down)
