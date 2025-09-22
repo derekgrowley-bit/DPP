@@ -13,8 +13,8 @@ def get_factor(sides: int) -> float:
     """
     return {1: 0.50, 2: 0.75, 3: 1.00, 4: 1.00}.get(int(sides), 0.75)
 
-st.title("🛠️ Concrete Lifting Polyfoam Cost Estimator")
-st.write("Enter the slab details below to get an estimate. These are rule-of-thumb calculations.")
+st.title("Polyfoam Lifting Cost Estimator")
+st.write("These are rule-of-thumb calculations.")
 
 # Sidebar inputs
 st.sidebar.header("Inputs")
