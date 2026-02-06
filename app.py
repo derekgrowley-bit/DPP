@@ -22,7 +22,7 @@ width = st.sidebar.number_input("Width of slab (feet)", min_value=0.1, value=10.
 length = st.sidebar.number_input("Length of slab (feet)", min_value=0.1, value=10.0, step=0.1)
 sides = st.sidebar.selectbox("How many sides of the slab have settled", options=[1, 2, 3, 4], index=1)
 settlement_inches = st.sidebar.number_input("Settlement at lowest point (inches)", min_value=0.1, value=1.0, step=0.1)
-price_per_lb = st.sidebar.number_input("Price per pound of polyfoam ($)", min_value=0.01, value=2.0, step=0.01)
+price_per_lb = st.sidebar.number_input("Price per pound of polyfoam ($)", min_value=0.01, value=12.0, step=0.01)
 
 if st.sidebar.button("Calculate Estimate"):
     # Core math
